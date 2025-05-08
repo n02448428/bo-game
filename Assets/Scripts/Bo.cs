@@ -1,9 +1,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
 
 public class Bo : MonoBehaviour
 {
@@ -26,26 +26,87 @@ public class Bo : MonoBehaviour
     private int score = 0;
     public Text scoreText;
 
+    // Input System
+    private PlayerInputActions inputActions;
+    private Vector2 moveInput;
+    private bool jumpPressed;
 
-    void Start()
+    void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
         sr = GetComponent<SpriteRenderer>();
         dead = false;
+
+        // Initialize Input Actions
+        try
+        {
+            inputActions = new PlayerInputActions();
+            Debug.Log("Bo Awake: Input Actions initialized successfully");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Bo Awake: Failed to initialize Input Actions - {e.Message}");
+        }
     }
 
+    void OnEnable()
+    {
+        if (inputActions != null)
+        {
+            Debug.Log("Enabling Player Input");
+            inputActions.Player.Enable();
+            inputActions.Player.Move.performed += ctx => 
+            {
+                moveInput = ctx.ReadValue<Vector2>();
+                Debug.Log($"Move performed: {moveInput}");
+            };
+            inputActions.Player.Move.canceled += ctx => 
+            {
+                moveInput = Vector2.zero;
+                Debug.Log("Move canceled");
+            };
+            inputActions.Player.Jump.performed += ctx => 
+            {
+                jumpPressed = true;
+                Debug.Log("Jump performed");
+            };
+            inputActions.Player.Jump.canceled += ctx => 
+            {
+                jumpPressed = false;
+                Debug.Log("Jump canceled");
+            };
+        }
+        else
+        {
+            Debug.LogError("OnEnable: inputActions is null");
+        }
+    }
+
+    void OnDisable()
+    {
+        if (inputActions != null)
+        {
+            Debug.Log("Disabling Player Input");
+            inputActions.Player.Disable();
+        }
+        else
+        {
+            Debug.LogWarning("OnDisable: inputActions is null, skipping Disable");
+        }
+    }
 
     void Update()
     {
         pos = transform.position;
         if (moving)
         {
-            if (Input.GetKey(KeyCode.RightArrow))
+            // Handle movement direction
+            if (moveInput.x > 0.1f)
             {
                 buttonPressed = RIGHT;
                 sr.flipX = false;
             }
-            else if (Input.GetKey(KeyCode.LeftArrow))
+            else if (moveInput.x < -0.1f)
             {
                 buttonPressed = LEFT;
                 sr.flipX = true;
@@ -55,17 +116,18 @@ public class Bo : MonoBehaviour
                 buttonPressed = null;
             }
 
-            if (Input.GetKey(KeyCode.Space))
+            // Handle jump
+            if (jumpPressed && isGrounded)
             {
-                if (isGrounded)
-                {
-                    isJumping = true;
-                }
+                isJumping = true;
             }
 
-            if (Input.GetKeyUp(KeyCode.Space)) isJumping = false;
+            Debug.Log($"Update - Move: {moveInput}, Jump: {jumpPressed}");
         }
-        else rb.linearVelocity = Move(0, 0);
+        else
+        {
+            rb.linearVelocity = Move(0, 0);
+        }
     }
 
     private void FixedUpdate()
@@ -126,17 +188,6 @@ public class Bo : MonoBehaviour
         {
             scoreText.text = "Try again";
             dead = true;
-            //dead = true;
-        }
-    }
-
-    void DeathSequence()
-    {
-        dead = StartTimer(deadTime);
-        if (timer > 3.0f)
-        {
-            dead = true;
-            ResetTimer();
         }
     }
 
@@ -158,19 +209,21 @@ public class Bo : MonoBehaviour
             {
                 rb.linearVelocity = Move(moveSpeed, jumpSpeed * 0.6f);
             }
-            if (buttonPressed == LEFT)
+            else if (buttonPressed == LEFT)
             {
                 rb.linearVelocity = Move(-moveSpeed, jumpSpeed * 0.6f);
             }
-            if (buttonPressed == null)
+            else
             {
                 rb.linearVelocity = Move(0, jumpSpeed * 0.6f);
             }
 
             isJumping = !StartTimer(jumpTime);
-            
         }
-        else ResetTimer();
+        else
+        {
+            ResetTimer();
+        }
     }
 
     bool StartTimer(float limit)
@@ -181,7 +234,10 @@ public class Bo : MonoBehaviour
             ResetTimer();
             return true;
         }
-        else return false;
+        else
+        {
+            return false;
+        }
     }
 
     void ResetTimer()

@@ -3,12 +3,12 @@
     "maps": [
         {
             "name": "Player",
-            "id": "8d12b3a5-6566-418d-90ab-cc00ce6cf5f1",
+            "id": "ebc2a151-0629-4def-bba9-0b0e56d8712e",
             "actions": [
                 {
                     "name": "Move",
                     "type": "Value",
-                    "id": "ae2e022a-9ec3-4790-83fb-77fb69178689",
+                    "id": "40252a4c-2738-49ef-a921-6780433c0bf5",
                     "expectedControlType": "Vector2",
                     "processors": "",
                     "interactions": "",
@@ -17,7 +17,7 @@
                 {
                     "name": "Jump",
                     "type": "Button",
-                    "id": "fcc10130-2962-4493-bff9-83c978aabac6",
+                    "id": "4a946d3d-773e-4ad3-95d7-ac3e02452101",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -27,8 +27,74 @@
             "bindings": [
                 {
                     "name": "",
-                    "id": "1f84291e-6f13-4de9-969a-075b244cd883",
-                    "path": "<Gamepad>/leftStick",
+                    "id": "22d9468d-32e3-4c51-ae51-961d973dc9fb",
+                    "path": "<HID::PowerA NSW Wired controller>/stick",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Move",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "2D Vector",
+                    "id": "beaded92-f48b-47c4-ac49-50efdf19148c",
+                    "path": "2DVector",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Move",
+                    "isComposite": true,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "up",
+                    "id": "8479d17f-bdfb-47ad-9a57-c7f4feed238a",
+                    "path": "<Keyboard>/upArrow",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Move",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "down",
+                    "id": "4e95184d-25a8-4c10-9b51-a2516d389502",
+                    "path": "<Keyboard>/downArrow",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Move",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "left",
+                    "id": "6c1ffc5e-0eff-4518-9b38-b9c47bd79110",
+                    "path": "<Keyboard>/leftArrow",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Move",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "right",
+                    "id": "5fd28780-d821-45c4-b89a-5ff82aaafbb2",
+                    "path": "<Keyboard>/rightArrow",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Move",
+                    "isComposite": false,
+                    "isPartOfComposite": true
+                },
+                {
+                    "name": "",
+                    "id": "aacb75d5-fcb7-4634-9c19-6f6c8c45baf6",
+                    "path": "<HID::PowerA NSW Wired controller>/hat",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -38,8 +104,8 @@
                 },
                 {
                     "name": "",
-                    "id": "7ec11968-7b75-435d-bcd2-4259713be318",
-                    "path": "<Gamepad>/buttonEast",
+                    "id": "4f0e6158-c0fb-45e6-bcae-42b2444e8505",
+                    "path": "<Keyboard>/space",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -49,8 +115,8 @@
                 },
                 {
                     "name": "",
-                    "id": "02ae4863-1bf0-46ed-8812-11fd4258d7e7",
-                    "path": "<Keyboard>/space",
+                    "id": "3786324c-e8db-4f4a-b3a4-02f0cecaf155",
+                    "path": "<HID::PowerA NSW Wired controller>/button3",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
