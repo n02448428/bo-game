@@ -9,13 +9,13 @@ public class BoMovement : MonoBehaviour
     // References
     private Rigidbody2D rb;
     private SpriteRenderer sr;
-    
+
     // Movement parameters
     [Header("Movement Parameters")]
-    public float moveSpeed = 9f;
+    public float moveSpeed = 6f;
     public float jumpSpeed = 40f;
     public float jumpTime = 0.1f;
-    
+
     // Movement state
     public const string RIGHT = "right";
     public const string LEFT = "left";
@@ -23,19 +23,20 @@ public class BoMovement : MonoBehaviour
     private bool isGrounded = false;
     private bool isJumping = false;
     private bool canMove = true;
-    
+
     // Timer
     private float timer = 0.0f;
-    
+
     // Input System
     private PlayerInputActions inputActions;
     private Vector2 moveInput;
     private bool jumpPressed;
-    
+    private bool rollPressed = false;
+
     // Events
     public delegate void GroundedEvent(Collision2D collision);
     public event GroundedEvent OnGrounded;
-    
+
     public delegate void DeadZoneEvent(Collision2D collision);
     public event DeadZoneEvent OnHitDeadZone;
 
@@ -45,17 +46,18 @@ public class BoMovement : MonoBehaviour
         get { return canMove; }
         set { canMove = value; }
     }
-    
-    public bool IsGrounded {
+
+    public bool IsGrounded
+    {
         get { return isGrounded; }
     }
-    
+
     void Awake()
     {
         // Get components
         rb = GetComponent<Rigidbody2D>();
         sr = GetComponent<SpriteRenderer>();
-        
+
         // Initialize Input Actions
         try
         {
@@ -67,7 +69,7 @@ public class BoMovement : MonoBehaviour
             Debug.LogError($"BoMovement: Failed to initialize Input Actions - {e.Message}");
         }
     }
-    
+
     void OnEnable()
     {
         if (inputActions != null)
@@ -77,9 +79,11 @@ public class BoMovement : MonoBehaviour
             inputActions.Player.Move.canceled += OnMoveCanceled;
             inputActions.Player.Jump.performed += OnJumpPerformed;
             inputActions.Player.Jump.canceled += OnJumpCanceled;
+            inputActions.Player.Roll.performed += OnRollPerformed;
+            inputActions.Player.Roll.canceled += OnRollCanceled;
         }
     }
-    
+
     void OnDisable()
     {
         if (inputActions != null)
@@ -88,30 +92,44 @@ public class BoMovement : MonoBehaviour
             inputActions.Player.Move.canceled -= OnMoveCanceled;
             inputActions.Player.Jump.performed -= OnJumpPerformed;
             inputActions.Player.Jump.canceled -= OnJumpCanceled;
+            inputActions.Player.Roll.performed -= OnRollPerformed;
+            inputActions.Player.Roll.canceled -= OnRollCanceled;
             inputActions.Player.Disable();
         }
     }
-    
+
     private void OnMovePerformed(InputAction.CallbackContext ctx)
     {
         moveInput = ctx.ReadValue<Vector2>();
     }
-    
+
     private void OnMoveCanceled(InputAction.CallbackContext ctx)
     {
         moveInput = Vector2.zero;
     }
-    
+
     private void OnJumpPerformed(InputAction.CallbackContext ctx)
     {
         jumpPressed = true;
     }
-    
+
     private void OnJumpCanceled(InputAction.CallbackContext ctx)
     {
         jumpPressed = false;
     }
-    
+
+    private void OnRollPerformed(InputAction.CallbackContext ctx)
+    {
+        rollPressed = true;
+        moveSpeed += 6f;
+    }
+
+    private void OnRollCanceled(InputAction.CallbackContext ctx)
+    {
+        rollPressed = false;
+        moveSpeed -= 6f;
+    }
+
     void Update()
     {
         if (canMove)
@@ -131,7 +149,7 @@ public class BoMovement : MonoBehaviour
             {
                 currentDirection = null;
             }
-            
+
             // Handle jump input
             if (jumpPressed && isGrounded)
             {
@@ -143,7 +161,7 @@ public class BoMovement : MonoBehaviour
             rb.linearVelocity = new Vector2(0, rb.linearVelocity.y);
         }
     }
-    
+
     void FixedUpdate()
     {
         if (!isJumping)
@@ -169,9 +187,10 @@ public class BoMovement : MonoBehaviour
         {
             // Jump movement
             isGrounded = false;
-            FixRotation();
             HandleJump();
         }
+        
+        HandleRotation();
     }
 
     void OnCollisionEnter2D(Collision2D collision)
@@ -197,7 +216,7 @@ public class BoMovement : MonoBehaviour
             }
         }
     }
-    
+
     // Adjust movement parameters
     public void UpdateMovementParams(float speedChange, float jumpTimeChange, float jumpSpeedChange)
     {
@@ -205,7 +224,7 @@ public class BoMovement : MonoBehaviour
         jumpTime += jumpTimeChange;
         jumpSpeed -= jumpSpeedChange;
     }
-    
+
     private void HandleJump()
     {
         if (!isGrounded && isJumping)
@@ -222,7 +241,7 @@ public class BoMovement : MonoBehaviour
             {
                 rb.linearVelocity = new Vector2(0, jumpSpeed * 0.6f);
             }
-            
+
             isJumping = !StartTimer(jumpTime);
         }
         else
@@ -230,12 +249,22 @@ public class BoMovement : MonoBehaviour
             ResetTimer();
         }
     }
-    
-    private void FixRotation()
+
+    private void HandleRotation()
     {
-        transform.rotation = Quaternion.identity;
+        if (rollPressed && isGrounded && rb.linearVelocity.x != 0)
+        {
+            // Allow rolling when button is pressed and moving on ground
+            float rotationAmount = rb.linearVelocity.x * 5f * Time.fixedDeltaTime;
+            transform.Rotate(0, 0, -rotationAmount);
+        }
+        else
+        {
+            // Keep upright otherwise
+            transform.rotation = Quaternion.identity;
+        }
     }
-    
+
     private bool StartTimer(float limit)
     {
         timer += Time.deltaTime;
@@ -249,7 +278,7 @@ public class BoMovement : MonoBehaviour
             return false;
         }
     }
-    
+
     private void ResetTimer()
     {
         timer = 0.0f;
