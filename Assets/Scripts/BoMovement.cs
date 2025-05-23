@@ -16,6 +16,19 @@ public class BoMovement : MonoBehaviour
     public float jumpSpeed = 40f;
     public float jumpTime = 0.1f;
 
+    [Header("Enhanced Jump Settings")]
+    [Tooltip("Time window to buffer jump input before landing")]
+    public float jumpBufferTime = 0.2f;
+    
+    [Tooltip("Gravity multiplier when falling (makes jumps feel snappier)")]
+    public float fallGravityMultiplier = 2.5f;
+    
+    [Tooltip("Gravity multiplier for short hops when jump is released early")]
+    public float lowJumpMultiplier = 4f;
+    
+    [Tooltip("Jump cut threshold - minimum velocity to allow jump cutting")]
+    public float jumpCutThreshold = 5f;
+
     // Movement state
     public const string RIGHT = "right";
     public const string LEFT = "left";
@@ -23,6 +36,11 @@ public class BoMovement : MonoBehaviour
     private bool isGrounded = false;
     private bool isJumping = false;
     private bool canMove = true;
+    
+    // Enhanced jump state
+    private float jumpBufferTimer = 0f;
+    private bool jumpWasReleased = false;
+    private float originalGravityScale;
 
     // Timer
     private float timer = 0.0f;
@@ -31,7 +49,7 @@ public class BoMovement : MonoBehaviour
     private PlayerInputActions inputActions;
     private Vector2 moveInput;
     private bool jumpPressed;
-    private bool jumpConsumed = false; // NEW: Track if jump input has been used
+    private bool jumpConsumed = false;
     private bool rollPressed = false;
 
     // Events
@@ -58,6 +76,7 @@ public class BoMovement : MonoBehaviour
         // Get components
         rb = GetComponent<Rigidbody2D>();
         sr = GetComponent<SpriteRenderer>();
+        originalGravityScale = rb.gravityScale;
 
         // Initialize Input Actions
         try
@@ -112,12 +131,15 @@ public class BoMovement : MonoBehaviour
     private void OnJumpPerformed(InputAction.CallbackContext ctx)
     {
         jumpPressed = true;
-        jumpConsumed = false; // NEW: Reset consumed flag when jump is pressed
+        jumpWasReleased = false;
+        jumpBufferTimer = jumpBufferTime; // Start jump buffer
+        jumpConsumed = false; // Reset consumed flag for new input
     }
 
     private void OnJumpCanceled(InputAction.CallbackContext ctx)
     {
         jumpPressed = false;
+        jumpWasReleased = true;
     }
 
     private void OnRollPerformed(InputAction.CallbackContext ctx)
@@ -152,12 +174,17 @@ public class BoMovement : MonoBehaviour
                 currentDirection = null;
             }
 
-            // Handle jump input - NEW: Check if jump hasn't been consumed
-            if (jumpPressed && isGrounded && !jumpConsumed)
+            // Update jump buffer timer
+            if (jumpBufferTimer > 0)
             {
-                isJumping = true;
-                jumpConsumed = true; // NEW: Mark jump as consumed
+                jumpBufferTimer -= Time.deltaTime;
             }
+            
+            // Handle jump input with buffering
+            HandleJumpInput();
+            
+            // Apply variable jump height
+            HandleVariableJumpHeight();
         }
         else
         {
@@ -189,9 +216,11 @@ public class BoMovement : MonoBehaviour
         else
         {
             // Jump movement
-            isGrounded = false;
             HandleJump();
         }
+        
+        // Apply enhanced gravity
+        ApplyEnhancedGravity();
         
         HandleRotation();
     }
@@ -217,6 +246,64 @@ public class BoMovement : MonoBehaviour
             {
                 OnHitDeadZone(collision);
             }
+        }
+    }
+
+    private void HandleJumpInput()
+    {
+        // Handle both immediate jumps and buffered jumps
+        if (isGrounded && !jumpConsumed)
+        {
+            // Immediate jump when grounded and jump is pressed
+            if (jumpPressed)
+            {
+                isJumping = true;
+                isGrounded = false; // Set not grounded to trigger jump logic
+                jumpConsumed = true;
+                jumpBufferTimer = 0; // Clear buffer
+            }
+            // Buffered jump - execute if we have buffered input
+            else if (jumpBufferTimer > 0)
+            {
+                isJumping = true;
+                isGrounded = false; // Set not grounded to trigger jump logic
+                jumpConsumed = true;
+                jumpBufferTimer = 0; // Clear buffer
+            }
+        }
+    }
+
+    private void HandleVariableJumpHeight()
+    {
+        // Cut jump short if button is released early (variable jump height)
+        if (jumpWasReleased && rb.linearVelocity.y > jumpCutThreshold && !isGrounded)
+        {
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, rb.linearVelocity.y * 0.5f);
+            jumpWasReleased = false;
+        }
+    }
+
+    private void ApplyEnhancedGravity()
+    {
+        // Apply different gravity based on jump state
+        if (!isGrounded)
+        {
+            if (rb.linearVelocity.y < 0) // Falling
+            {
+                rb.gravityScale = originalGravityScale * fallGravityMultiplier;
+            }
+            else if (rb.linearVelocity.y > 0 && jumpWasReleased) // Rising but jump released
+            {
+                rb.gravityScale = originalGravityScale * lowJumpMultiplier;
+            }
+            else
+            {
+                rb.gravityScale = originalGravityScale;
+            }
+        }
+        else
+        {
+            rb.gravityScale = originalGravityScale;
         }
     }
 
@@ -257,13 +344,11 @@ public class BoMovement : MonoBehaviour
     {
         if (rollPressed && isGrounded && rb.linearVelocity.x != 0)
         {
-            // Allow rolling when button is pressed and moving on ground
             float rotationAmount = rb.linearVelocity.x * 5f * Time.fixedDeltaTime;
             transform.Rotate(0, 0, -rotationAmount);
         }
         else
         {
-            // Keep upright otherwise
             transform.rotation = Quaternion.identity;
         }
     }
