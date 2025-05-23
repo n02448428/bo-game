@@ -160,7 +160,7 @@ public class Bo : MonoBehaviour
             reload = StartTimer(deadTime);
             if (reload)
             {
-                SceneManager.LoadScene("SampleScene");
+                SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
             }
         }
     }
