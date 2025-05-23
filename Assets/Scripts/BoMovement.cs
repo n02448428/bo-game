@@ -31,6 +31,7 @@ public class BoMovement : MonoBehaviour
     private PlayerInputActions inputActions;
     private Vector2 moveInput;
     private bool jumpPressed;
+    private bool jumpConsumed = false; // NEW: Track if jump input has been used
     private bool rollPressed = false;
 
     // Events
@@ -111,6 +112,7 @@ public class BoMovement : MonoBehaviour
     private void OnJumpPerformed(InputAction.CallbackContext ctx)
     {
         jumpPressed = true;
+        jumpConsumed = false; // NEW: Reset consumed flag when jump is pressed
     }
 
     private void OnJumpCanceled(InputAction.CallbackContext ctx)
@@ -150,10 +152,11 @@ public class BoMovement : MonoBehaviour
                 currentDirection = null;
             }
 
-            // Handle jump input
-            if (jumpPressed && isGrounded)
+            // Handle jump input - NEW: Check if jump hasn't been consumed
+            if (jumpPressed && isGrounded && !jumpConsumed)
             {
                 isJumping = true;
+                jumpConsumed = true; // NEW: Mark jump as consumed
             }
         }
         else
