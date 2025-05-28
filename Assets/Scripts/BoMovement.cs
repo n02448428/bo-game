@@ -9,7 +9,7 @@ public class BoMovement : MonoBehaviour
     // References
     private Rigidbody2D rb;
     private SpriteRenderer sr;
-    private Animator _animator;
+    [SerializeField] private Animator _animator;
 
     // Movement parameters
     [Header("Movement Parameters")]
@@ -122,11 +122,13 @@ public class BoMovement : MonoBehaviour
     private void OnMovePerformed(InputAction.CallbackContext ctx)
     {
         moveInput = ctx.ReadValue<Vector2>();
+        _animator.SetBool("isWalking", true);
     }
 
     private void OnMoveCanceled(InputAction.CallbackContext ctx)
     {
         moveInput = Vector2.zero;
+        _animator.SetBool("isWalking", false);
     }
 
     private void OnJumpPerformed(InputAction.CallbackContext ctx)
