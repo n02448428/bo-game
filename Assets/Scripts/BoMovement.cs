@@ -9,6 +9,7 @@ public class BoMovement : MonoBehaviour
     // References
     private Rigidbody2D rb;
     private SpriteRenderer sr;
+    private Animator _animator;
 
     // Movement parameters
     [Header("Movement Parameters")]
@@ -162,12 +163,12 @@ public class BoMovement : MonoBehaviour
             if (moveInput.x > 0.1f)
             {
                 currentDirection = RIGHT;
-                sr.flipX = false;
+                sr.flipX = true;
             }
             else if (moveInput.x < -0.1f)
             {
                 currentDirection = LEFT;
-                sr.flipX = true;
+                sr.flipX = false;
             }
             else
             {
