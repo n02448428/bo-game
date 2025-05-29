@@ -20,13 +20,13 @@ public class BoMovement : MonoBehaviour
     [Header("Enhanced Jump Settings")]
     [Tooltip("Time window to buffer jump input before landing")]
     public float jumpBufferTime = 0.2f;
-    
+
     [Tooltip("Gravity multiplier when falling (makes jumps feel snappier)")]
     public float fallGravityMultiplier = 1.5f;
-    
+
     [Tooltip("Gravity multiplier for short hops when jump is released early")]
     public float lowJumpMultiplier = 4f;
-    
+
     [Tooltip("Jump cut threshold - minimum velocity to allow jump cutting")]
     public float jumpCutThreshold = 5f;
 
@@ -37,7 +37,7 @@ public class BoMovement : MonoBehaviour
     private bool isGrounded = false;
     private bool isJumping = false;
     private bool canMove = true;
-    
+
     // Enhanced jump state
     private float jumpBufferTimer = 0f;
     private bool jumpWasReleased = false;
@@ -182,10 +182,10 @@ public class BoMovement : MonoBehaviour
             {
                 jumpBufferTimer -= Time.deltaTime;
             }
-            
+
             // Handle jump input with buffering
             HandleJumpInput();
-            
+
             // Apply variable jump height
             HandleVariableJumpHeight();
         }
