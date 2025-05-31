@@ -22,7 +22,7 @@ public class BoMovement : MonoBehaviour
     public float jumpBufferTime = 0.2f;
 
     [Tooltip("Gravity multiplier when falling (makes jumps feel snappier)")]
-    public float fallGravityMultiplier = 1.5f;
+    public float fallGravityMultiplier = 0.5f;
 
     [Tooltip("Gravity multiplier for short hops when jump is released early")]
     public float lowJumpMultiplier = 4f;
