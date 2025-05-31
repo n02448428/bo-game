@@ -28,7 +28,7 @@ public class BoGameplay : MonoBehaviour
     [Header("Collectible Enhancement")]
     public float speedBoost = 0.3f;
     public float jumpTimeBoost = 0.01f;
-    public float jumpSpeedReduction = 0.2f;
+    public float jumpSpeedReduction = 0f;
 
     void Awake()
     {
