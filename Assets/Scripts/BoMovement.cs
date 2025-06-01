@@ -30,6 +30,25 @@ public class BoMovement : MonoBehaviour
     [Tooltip("Jump cut threshold - minimum velocity to allow jump cutting")]
     public float jumpCutThreshold = 5f;
 
+    // New State System Parameters
+    [Header("Puff State Settings")]
+    [Tooltip("Gravity multiplier when puffed (floating)")]
+    public float puffGravityMultiplier = 0.1f;
+
+    [Header("Flatten State Settings")]
+    [Tooltip("Gravity multiplier when flattened (heavy fall)")]
+    public float flattenGravityMultiplier = 4f;
+    [Tooltip("Speed when crawling while flattened")]
+    public float crawlSpeed = 2f;
+    [Tooltip("Mini hop speed when jumping while flattened")]
+    public float miniHopSpeed = 15f;
+
+    [Header("Super Jump Settings")]
+    [Tooltip("Super jump height multiplier")]
+    public float superJumpMultiplier = 2.5f;
+    [Tooltip("Time window to trigger super jump after state transition")]
+    public float superJumpTransitionWindow = 0.3f;
+
     // Movement state
     public const string RIGHT = "right";
     public const string LEFT = "left";
@@ -43,6 +62,13 @@ public class BoMovement : MonoBehaviour
     private bool jumpWasReleased = false;
     private float originalGravityScale;
 
+    // New State Management
+    private bool isPuffed = false;
+    private bool isFlattened = false;
+    private float lastStateChangeTime = 0f;
+    private bool wasPreviouslyFlattened = false;
+    private bool isStuckToGround = false;
+
     // Timer
     private float timer = 0.0f;
 
@@ -52,6 +78,8 @@ public class BoMovement : MonoBehaviour
     private bool jumpPressed;
     private bool jumpConsumed = false;
     private bool rollPressed = false;
+    private bool puffHeld = false;
+    private bool flattenHeld = false;
 
     // Events
     public delegate void GroundedEvent(Collision2D collision);
@@ -102,6 +130,10 @@ public class BoMovement : MonoBehaviour
             inputActions.Player.Jump.canceled += OnJumpCanceled;
             inputActions.Player.Roll.performed += OnRollPerformed;
             inputActions.Player.Roll.canceled += OnRollCanceled;
+            inputActions.Player.Puff.performed += OnPuffPerformed;
+            inputActions.Player.Puff.canceled += OnPuffCanceled;
+            inputActions.Player.Flatten.performed += OnFlattenPerformed;
+            inputActions.Player.Flatten.canceled += OnFlattenCanceled;
         }
     }
 
@@ -115,6 +147,10 @@ public class BoMovement : MonoBehaviour
             inputActions.Player.Jump.canceled -= OnJumpCanceled;
             inputActions.Player.Roll.performed -= OnRollPerformed;
             inputActions.Player.Roll.canceled -= OnRollCanceled;
+            inputActions.Player.Puff.performed -= OnPuffPerformed;
+            inputActions.Player.Puff.canceled -= OnPuffCanceled;
+            inputActions.Player.Flatten.performed -= OnFlattenPerformed;
+            inputActions.Player.Flatten.canceled -= OnFlattenCanceled;
             inputActions.Player.Disable();
         }
     }
@@ -135,8 +171,8 @@ public class BoMovement : MonoBehaviour
     {
         jumpPressed = true;
         jumpWasReleased = false;
-        jumpBufferTimer = jumpBufferTime; // Start jump buffer
-        jumpConsumed = false; // Reset consumed flag for new input
+        jumpBufferTimer = jumpBufferTime;
+        jumpConsumed = false;
     }
 
     private void OnJumpCanceled(InputAction.CallbackContext ctx)
@@ -147,14 +183,108 @@ public class BoMovement : MonoBehaviour
 
     private void OnRollPerformed(InputAction.CallbackContext ctx)
     {
-        rollPressed = true;
-        moveSpeed += 6f;
+        // Roll only works in normal or puffed state
+        if (!isFlattened)
+        {
+            rollPressed = true;
+            moveSpeed += 6f;
+        }
     }
 
     private void OnRollCanceled(InputAction.CallbackContext ctx)
     {
-        rollPressed = false;
-        moveSpeed -= 6f;
+        if (rollPressed)
+        {
+            rollPressed = false;
+            moveSpeed -= 6f;
+        }
+    }
+
+    private void OnPuffPerformed(InputAction.CallbackContext ctx)
+    {
+        puffHeld = true;
+        HandleStateTransition(true, false);
+    }
+
+    private void OnPuffCanceled(InputAction.CallbackContext ctx)
+    {
+        puffHeld = false;
+        HandleStateTransition(false, flattenHeld);
+    }
+
+    private void OnFlattenPerformed(InputAction.CallbackContext ctx)
+    {
+        flattenHeld = true;
+        HandleStateTransition(puffHeld, true);
+    }
+
+    private void OnFlattenCanceled(InputAction.CallbackContext ctx)
+    {
+        flattenHeld = false;
+        HandleStateTransition(puffHeld, false);
+    }
+
+    private void HandleStateTransition(bool newPuffState, bool newFlattenState)
+    {
+        // Store previous state for super jump detection
+        wasPreviouslyFlattened = isFlattened;
+
+        // States are mutually exclusive - new input cancels previous
+        if (newPuffState && newFlattenState)
+        {
+            // If both pressed simultaneously, prioritize the one that wasn't already active
+            if (isPuffed)
+            {
+                isPuffed = false;
+                isFlattened = true;
+            }
+            else
+            {
+                isPuffed = true;
+                isFlattened = false;
+            }
+        }
+        else
+        {
+            isPuffed = newPuffState;
+            isFlattened = newFlattenState;
+        }
+
+        // Record state change time
+        lastStateChangeTime = Time.time;
+
+        // Update animator states
+        _animator.SetBool("isPuffed", isPuffed);
+        _animator.SetBool("isFlattened", isFlattened);
+
+        // Check for super jump condition
+        if (wasPreviouslyFlattened && isPuffed && isGrounded)
+        {
+            float timeSinceStateChange = Time.time - lastStateChangeTime;
+            if (timeSinceStateChange <= superJumpTransitionWindow)
+            {
+                TriggerSuperJump();
+            }
+        }
+
+        // Reset stuck to ground when leaving flattened state
+        if (!isFlattened)
+        {
+            isStuckToGround = false;
+        }
+    }
+
+    private void TriggerSuperJump()
+    {
+        if (isGrounded)
+        {
+            // Perform super jump
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpSpeed * superJumpMultiplier);
+            isGrounded = false;
+            isJumping = true;
+            
+            Debug.Log("Super Jump Triggered!");
+        }
     }
 
     void Update()
@@ -183,11 +313,14 @@ public class BoMovement : MonoBehaviour
                 jumpBufferTimer -= Time.deltaTime;
             }
 
-            // Handle jump input with buffering
+            // Handle jump input based on current state
             HandleJumpInput();
 
-            // Apply variable jump height
-            HandleVariableJumpHeight();
+            // Apply variable jump height (only in normal state)
+            if (!isPuffed && !isFlattened)
+            {
+                HandleVariableJumpHeight();
+            }
         }
         else
         {
@@ -199,21 +332,10 @@ public class BoMovement : MonoBehaviour
     {
         if (!isJumping)
         {
-            // Normal movement
+            // Movement based on current state
             if (canMove)
             {
-                if (currentDirection == RIGHT)
-                {
-                    rb.linearVelocity = new Vector2(moveSpeed, rb.linearVelocity.y * 0.6f);
-                }
-                else if (currentDirection == LEFT)
-                {
-                    rb.linearVelocity = new Vector2(-moveSpeed, rb.linearVelocity.y * 0.6f);
-                }
-                else
-                {
-                    rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.6f, rb.linearVelocity.y * 0.6f);
-                }
+                HandleMovementByState();
             }
         }
         else
@@ -222,10 +344,46 @@ public class BoMovement : MonoBehaviour
             HandleJump();
         }
         
-        // Apply enhanced gravity
+        // Apply enhanced gravity based on state
         ApplyEnhancedGravity();
         
         HandleRotation();
+    }
+
+    private void HandleMovementByState()
+    {
+        if (isFlattened && isStuckToGround)
+        {
+            // Crawling movement when flattened and stuck to ground
+            if (currentDirection == RIGHT)
+            {
+                rb.linearVelocity = new Vector2(crawlSpeed, rb.linearVelocity.y);
+            }
+            else if (currentDirection == LEFT)
+            {
+                rb.linearVelocity = new Vector2(-crawlSpeed, rb.linearVelocity.y);
+            }
+            else
+            {
+                rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.6f, rb.linearVelocity.y);
+            }
+        }
+        else
+        {
+            // Normal movement (works for normal and puffed states)
+            if (currentDirection == RIGHT)
+            {
+                rb.linearVelocity = new Vector2(moveSpeed, rb.linearVelocity.y * 0.6f);
+            }
+            else if (currentDirection == LEFT)
+            {
+                rb.linearVelocity = new Vector2(-moveSpeed, rb.linearVelocity.y * 0.6f);
+            }
+            else
+            {
+                rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.6f, rb.linearVelocity.y * 0.6f);
+            }
+        }
     }
 
     void OnCollisionEnter2D(Collision2D collision)
@@ -235,6 +393,12 @@ public class BoMovement : MonoBehaviour
             isGrounded = true;
             isJumping = false;
             ResetTimer();
+
+            // If flattened, stick to ground
+            if (isFlattened)
+            {
+                isStuckToGround = true;
+            }
 
             // Notify subscribers that we've landed
             if (OnGrounded != null)
@@ -254,31 +418,46 @@ public class BoMovement : MonoBehaviour
 
     private void HandleJumpInput()
     {
-        // Handle both immediate jumps and buffered jumps
+        if (isPuffed)
+        {
+            // No jumping allowed when puffed
+            return;
+        }
+
+        if (isFlattened)
+        {
+            // Mini hop when flattened
+            if (jumpPressed && isGrounded && !jumpConsumed)
+            {
+                rb.linearVelocity = new Vector2(rb.linearVelocity.x, miniHopSpeed);
+                jumpConsumed = true;
+            }
+            return;
+        }
+
+        // Normal jump logic (only in normal state)
         if (isGrounded && !jumpConsumed)
         {
-            // Immediate jump when grounded and jump is pressed
             if (jumpPressed)
             {
                 isJumping = true;
-                isGrounded = false; // Set not grounded to trigger jump logic
+                isGrounded = false;
                 jumpConsumed = true;
-                jumpBufferTimer = 0; // Clear buffer
+                jumpBufferTimer = 0;
             }
-            // Buffered jump - execute if we have buffered input
             else if (jumpBufferTimer > 0)
             {
                 isJumping = true;
-                isGrounded = false; // Set not grounded to trigger jump logic
+                isGrounded = false;
                 jumpConsumed = true;
-                jumpBufferTimer = 0; // Clear buffer
+                jumpBufferTimer = 0;
             }
         }
     }
 
     private void HandleVariableJumpHeight()
     {
-        // Cut jump short if button is released early (variable jump height)
+        // Cut jump short if button is released early (only in normal state)
         if (jumpWasReleased && rb.linearVelocity.y > jumpCutThreshold && !isGrounded)
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, rb.linearVelocity.y * 0.5f);
@@ -288,20 +467,33 @@ public class BoMovement : MonoBehaviour
 
     private void ApplyEnhancedGravity()
     {
-        // Apply different gravity based on jump state
         if (!isGrounded)
         {
-            if (rb.linearVelocity.y < 0) // Falling
+            if (isPuffed)
             {
-                rb.gravityScale = originalGravityScale * fallGravityMultiplier;
+                // Very light gravity when puffed
+                rb.gravityScale = originalGravityScale * puffGravityMultiplier;
             }
-            else if (rb.linearVelocity.y > 0 && jumpWasReleased) // Rising but jump released
+            else if (isFlattened)
             {
-                rb.gravityScale = originalGravityScale * lowJumpMultiplier;
+                // Heavy gravity when flattened
+                rb.gravityScale = originalGravityScale * flattenGravityMultiplier;
             }
             else
             {
-                rb.gravityScale = originalGravityScale;
+                // Normal enhanced gravity system
+                if (rb.linearVelocity.y < 0) // Falling
+                {
+                    rb.gravityScale = originalGravityScale * fallGravityMultiplier;
+                }
+                else if (rb.linearVelocity.y > 0 && jumpWasReleased) // Rising but jump released
+                {
+                    rb.gravityScale = originalGravityScale * lowJumpMultiplier;
+                }
+                else
+                {
+                    rb.gravityScale = originalGravityScale;
+                }
             }
         }
         else
@@ -345,7 +537,8 @@ public class BoMovement : MonoBehaviour
 
     private void HandleRotation()
     {
-        if (rollPressed && isGrounded && rb.linearVelocity.x != 0)
+        // Roll only works in normal or puffed state
+        if (rollPressed && isGrounded && rb.linearVelocity.x != 0 && !isFlattened)
         {
             float rotationAmount = rb.linearVelocity.x * 5f * Time.fixedDeltaTime;
             transform.Rotate(0, 0, -rotationAmount);

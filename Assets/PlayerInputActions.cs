@@ -117,6 +117,24 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""Puff"",
+                    ""type"": ""Button"",
+                    ""id"": ""525a71cb-c9cc-4a50-93d2-126bec735fcc"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
+                },
+                {
+                    ""name"": ""Flatten"",
+                    ""type"": ""Button"",
+                    ""id"": ""15dbeb45-d891-400a-a413-a3d4b83cd2f0"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
                 }
             ],
             ""bindings"": [
@@ -240,6 +258,50 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
                     ""action"": ""Roll"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""653e3592-76ee-47a9-a0c6-c1ac7188cb38"",
+                    ""path"": ""<Keyboard>/c"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Puff"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""12bc13a3-0784-4000-b5eb-c72aa244414c"",
+                    ""path"": ""<HID::PowerA NSW Wired controller>/button4"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Puff"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""e33ee7ee-c172-4300-b1f2-7de00aab0ffa"",
+                    ""path"": ""<HID::PowerA NSW Wired controller>/trigger"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Flatten"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""bb7eed5b-6b60-4344-a7f2-368ce60fc72e"",
+                    ""path"": ""<Keyboard>/v"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Flatten"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         }
@@ -251,6 +313,8 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
         m_Player_Move = m_Player.FindAction("Move", throwIfNotFound: true);
         m_Player_Jump = m_Player.FindAction("Jump", throwIfNotFound: true);
         m_Player_Roll = m_Player.FindAction("Roll", throwIfNotFound: true);
+        m_Player_Puff = m_Player.FindAction("Puff", throwIfNotFound: true);
+        m_Player_Flatten = m_Player.FindAction("Flatten", throwIfNotFound: true);
     }
 
     ~@PlayerInputActions()
@@ -334,6 +398,8 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
     private readonly InputAction m_Player_Move;
     private readonly InputAction m_Player_Jump;
     private readonly InputAction m_Player_Roll;
+    private readonly InputAction m_Player_Puff;
+    private readonly InputAction m_Player_Flatten;
     /// <summary>
     /// Provides access to input actions defined in input action map "Player".
     /// </summary>
@@ -357,6 +423,14 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "Player/Roll".
         /// </summary>
         public InputAction @Roll => m_Wrapper.m_Player_Roll;
+        /// <summary>
+        /// Provides access to the underlying input action "Player/Puff".
+        /// </summary>
+        public InputAction @Puff => m_Wrapper.m_Player_Puff;
+        /// <summary>
+        /// Provides access to the underlying input action "Player/Flatten".
+        /// </summary>
+        public InputAction @Flatten => m_Wrapper.m_Player_Flatten;
         /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
@@ -392,6 +466,12 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
             @Roll.started += instance.OnRoll;
             @Roll.performed += instance.OnRoll;
             @Roll.canceled += instance.OnRoll;
+            @Puff.started += instance.OnPuff;
+            @Puff.performed += instance.OnPuff;
+            @Puff.canceled += instance.OnPuff;
+            @Flatten.started += instance.OnFlatten;
+            @Flatten.performed += instance.OnFlatten;
+            @Flatten.canceled += instance.OnFlatten;
         }
 
         /// <summary>
@@ -412,6 +492,12 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
             @Roll.started -= instance.OnRoll;
             @Roll.performed -= instance.OnRoll;
             @Roll.canceled -= instance.OnRoll;
+            @Puff.started -= instance.OnPuff;
+            @Puff.performed -= instance.OnPuff;
+            @Puff.canceled -= instance.OnPuff;
+            @Flatten.started -= instance.OnFlatten;
+            @Flatten.performed -= instance.OnFlatten;
+            @Flatten.canceled -= instance.OnFlatten;
         }
 
         /// <summary>
@@ -473,5 +559,19 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnRoll(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Puff" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnPuff(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Flatten" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnFlatten(InputAction.CallbackContext context);
     }
 }
