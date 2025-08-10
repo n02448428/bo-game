@@ -355,7 +355,7 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
                 {
                     ""name"": """",
                     ""id"": ""810f688f-f26d-49db-86d2-54cad15737ff"",
-                    ""path"": ""<Gamepad>/rightStick"",
+                    ""path"": ""<HID::PowerA NSW Wired controller>/stick"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",

@@ -61,8 +61,8 @@ public class BoMovement : MonoBehaviour
     public float teleportClearRadius = 0.4f;
 
     // State
-    public const string RIGHT = "left";
-    public const string LEFT = "right";
+    public const string RIGHT = "right";
+    public const string LEFT = "left";
     private string currentDirection;
     private bool isGrounded = false;
     private bool isJumping = false;
