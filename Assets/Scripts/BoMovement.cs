@@ -13,7 +13,7 @@ public class BoMovement : MonoBehaviour
 
     // Input
     private PlayerInputActions inputActions;
-    private Vector2 moveInput;
+    private Vector2 moveInput = Vector2.zero;
     private bool jumpPressed;
     private bool jumpWasReleased;
     private bool rollPressed;
@@ -35,20 +35,28 @@ public class BoMovement : MonoBehaviour
     [Header("Roll")]
     public float rollSpeedBonus = 6f;
 
-    [Header("Puff (float)")]
+    [Header("Puff (float) - entry smoothing + float control")]
     public float puffGravityMultiplier = 0.1f;
+    public float puffMaxSpeed = 4f;
+    [Tooltip("Higher -> faster exponential convergence")]
+    public float puffAcceleration = 6f;
+    [Tooltip("How quickly puff horizontal velocity decays when no input")]
+    public float puffDecay = 5f;
+    [Tooltip("Time (seconds) to smooth (lerp) existing horizontal velocity to zero when entering puff")]
+    public float puffEntrySmoothingDuration = 0.08f;
 
     [Header("Flatten (stick & crawl)")]
     public float flattenGravityMultiplier = 4f;
     public float crawlSpeed = 2f;
     public float miniHopSpeed = 15f;
+    [Tooltip("If true, allow crawling when flattened; if false, flatten locks horizontal movement while grounded.")]
+    public bool flattenAllowsCrawl = true;
 
     [Header("Super Jump")]
     public float superJumpMultiplier = 2.5f;
     public float superJumpTransitionWindow = 0.3f;
 
-    // New features
-    [Header("Puff Flap (hop while puffed)")]
+    [Header("Puff Flap (works on ground or air)")]
     public float puffFlapForce = 25f;
     public float puffFlapCooldown = 0.25f;
     private float puffFlapTimer = 0f;
@@ -57,8 +65,8 @@ public class BoMovement : MonoBehaviour
     public float teleportDistance = 3f;
     public LayerMask teleportObstacles; // destination must NOT overlap this mask
     public float teleportCooldown = 0.8f;
-    private float teleportTimer = 0f;
     public float teleportClearRadius = 0.4f;
+    private float teleportTimer = 0f;
 
     // State
     public const string RIGHT = "right";
@@ -68,18 +76,27 @@ public class BoMovement : MonoBehaviour
     private bool isJumping = false;
     private bool canMove = true;
 
-    // Advanced state flags
+    // Jump buffering
     private float jumpBufferTimer = 0f;
     private bool jumpConsumed = false;
+
+    // Gravity
     private float originalGravityScale;
+
+    // Puff internals
+    private float puffVelX = 0f;          // the velocity we manage while puffing
+    private float prevHorizontalVel = 0f; // used to smooth into puff
+    private float puffEntryTimer = 0f;    // counts down while smoothing into puff
+
+    // Flatten internals
     private bool isPuffed = false;
     private bool isFlattened = false;
     private float lastStateChangeTime = 0f;
     private bool wasPreviouslyFlattened = false;
     private bool isStuckToGround = false;
 
-    // Timer
-    private float timer = 0.0f;
+    // Timer style (keeps parity with earlier code)
+    private float timer = 0f;
 
     // Events
     public delegate void GroundedEvent(Collision2D collision);
@@ -96,8 +113,6 @@ public class BoMovement : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         sr = GetComponent<SpriteRenderer>();
         originalGravityScale = rb.gravityScale;
-
-        // Input asset
         inputActions = new PlayerInputActions();
     }
 
@@ -146,12 +161,31 @@ public class BoMovement : MonoBehaviour
     }
 
     // -------------------------
-    // Input callbacks
+    // Input callbacks (robust: accepts Vector2 or single float axes like z/rz)
     // -------------------------
     private void OnMovePerformed(InputAction.CallbackContext ctx)
     {
-        moveInput = ctx.ReadValue<Vector2>();
-        _animator?.SetBool("isWalking", true);
+        // Try to read Vector2, but some controllers expose Z/Rz as single float axes.
+        object raw = ctx.ReadValueAsObject();
+        if (raw is Vector2 v)
+        {
+            moveInput = v;
+        }
+        else if (raw is float f)
+        {
+            // Map float control to X or Y based on control path (z/rz)
+            string path = ctx.control?.path?.ToLower() ?? "";
+            if (path.Contains("/z")) moveInput.x = f;
+            else if (path.Contains("/rz")) moveInput.y = f;
+            else moveInput = new Vector2(f, 0f); // fallback
+        }
+        else
+        {
+            // fallback: read action aggregated value (may still work)
+            moveInput = inputActions.Player.Move.ReadValue<Vector2>();
+        }
+
+        _animator?.SetBool("isWalking", Mathf.Abs(moveInput.x) > 0.1f);
     }
 
     private void OnMoveCanceled(InputAction.CallbackContext ctx)
@@ -168,12 +202,12 @@ public class BoMovement : MonoBehaviour
         jumpBufferTimer = jumpBufferTime;
         jumpConsumed = false;
 
-        // Puff-flap: works on ground or air while puffed
+        // Puff-flap: works on ground or air while puffed (cooldown enforced)
         if (isPuffed && puffFlapTimer <= 0f)
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, puffFlapForce);
             puffFlapTimer = puffFlapCooldown;
-            // consume the jump so it doesn't trigger normal jump as well
+            // don't let this also trigger a normal jump
             jumpConsumed = true;
             jumpBufferTimer = 0f;
         }
@@ -206,6 +240,10 @@ public class BoMovement : MonoBehaviour
     private void OnPuffPerformed(InputAction.CallbackContext ctx)
     {
         puffHeld = true;
+        // smooth into puff: record prior horizontal velocity and start short smoothing
+        prevHorizontalVel = rb.linearVelocity.x;
+        puffEntryTimer = puffEntrySmoothingDuration;
+        puffVelX = 0f;
         HandleStateTransition(true, isFlattened);
     }
 
@@ -227,7 +265,6 @@ public class BoMovement : MonoBehaviour
         HandleStateTransition(isPuffed, false);
     }
 
-    // Teleport: allow teleporting "through" intermediate obstacles as long as destination is free
     private void OnTeleportPerformed(InputAction.CallbackContext ctx)
     {
         if (teleportTimer > 0f || !canMove) return;
@@ -237,18 +274,15 @@ public class BoMovement : MonoBehaviour
 
         Vector2 targetPos = (Vector2)transform.position + dir * teleportDistance;
 
-        // Destination must be free (we only check the destination, not intermediate obstacles)
+        // If full destination is free, teleport — otherwise sample along the line for closest free spot
         if (!Physics2D.OverlapCircle(targetPos, teleportClearRadius, teleportObstacles))
         {
-            // Optionally: spawn VFX here (teleport-out/in)
             transform.position = targetPos;
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, 0f); // reset vertical velocity after teleport
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, 0f);
             teleportTimer = teleportCooldown;
         }
         else
         {
-            // If destination blocked, try to find closest free spot between current and target
-            // Sample increments along the line (short loop, efficient)
             int samples = 6;
             for (int i = samples - 1; i >= 1; --i)
             {
@@ -270,10 +304,11 @@ public class BoMovement : MonoBehaviour
     // -------------------------
     void Update()
     {
-        // Timers
+        // timers
         if (jumpBufferTimer > 0f) jumpBufferTimer -= Time.deltaTime;
         if (puffFlapTimer > 0f) puffFlapTimer -= Time.deltaTime;
         if (teleportTimer > 0f) teleportTimer -= Time.deltaTime;
+        if (puffEntryTimer > 0f) puffEntryTimer -= Time.deltaTime;
     }
 
     void FixedUpdate()
@@ -284,26 +319,50 @@ public class BoMovement : MonoBehaviour
             return;
         }
 
-        // Handle direction and sprite flip
+        // Direction & sprite flip
         if (moveInput.x > 0.1f)
         {
             currentDirection = RIGHT;
-            sr.flipX = false;
+            sr.flipX = true;
         }
         else if (moveInput.x < -0.1f)
         {
             currentDirection = LEFT;
-            sr.flipX = true;
+            sr.flipX = false;
         }
         else
         {
             currentDirection = null;
         }
 
-        // Jump buffering & consumption
+        // Handle jump input
         HandleJumpInput();
 
-        // Movement by state
+        // Puff entry smoothing (smoothly reduce prior horizontal momentum to zero)
+        if (isPuffed)
+        {
+            if (puffEntryTimer > 0f)
+            {
+                float progress = 1f - Mathf.Clamp01(puffEntryTimer / puffEntrySmoothingDuration);
+                float newX = Mathf.Lerp(prevHorizontalVel, 0f, progress);
+                rb.linearVelocity = new Vector2(newX, rb.linearVelocity.y);
+                puffVelX = newX;
+            }
+            else
+            {
+                // apply the light/float horizontal system
+                ApplyPuffHorizontalMovement();
+            }
+        }
+
+        // Flatten hold lock: if currently flattened AND the player is holding flatten and grounded -> lock horizontal
+        if (isFlattened && flattenHeld && isGrounded && !flattenAllowsCrawl)
+        {
+            rb.linearVelocity = new Vector2(0f, 0f); // hold position on ground/ramp
+            return;
+        }
+
+        // Normal movement or flattened crawl
         if (!isJumping)
         {
             HandleMovementByState();
@@ -313,10 +372,8 @@ public class BoMovement : MonoBehaviour
             HandleJumpPhysics();
         }
 
-        // Gravity adjustments for feel
+        // gravity & other
         ApplyEnhancedGravity();
-
-        // Rotation / roll visual
         HandleRotation();
     }
 
@@ -330,7 +387,7 @@ public class BoMovement : MonoBehaviour
         // Mutually exclusive states
         if (newPuffState && newFlattenState)
         {
-            // If both pressed simultaneously, prioritize the one that wasn't active
+            // prioritize the one that wasn't already active
             if (isPuffed)
             {
                 isPuffed = false;
@@ -352,7 +409,7 @@ public class BoMovement : MonoBehaviour
         _animator?.SetBool("isPuffed", isPuffed);
         _animator?.SetBool("isFlattened", isFlattened);
 
-        // Super jump detection: flattened -> puff quickly while grounded
+        // Super-jump (flatten -> puff quickly while grounded)
         if (wasPreviouslyFlattened && isPuffed && isGrounded)
         {
             float timeSince = Time.time - lastStateChangeTime;
@@ -369,14 +426,14 @@ public class BoMovement : MonoBehaviour
     {
         if (isPuffed)
         {
-            // don't perform normal jump while puffed (puff-flap handled in input)
+            // normal jump disabled while puffed (puff-flap handled in input)
             return;
         }
 
         if (isFlattened)
         {
-            // mini hop when flattened
-            if (jumpPressed && isGrounded && !jumpConsumed)
+            // small hop while flattened
+            if (jumpPressed && isGrounded && !jumpConsumed && flattenAllowsCrawl)
             {
                 rb.linearVelocity = new Vector2(rb.linearVelocity.x, miniHopSpeed);
                 jumpConsumed = true;
@@ -384,7 +441,7 @@ public class BoMovement : MonoBehaviour
             return;
         }
 
-        // Normal state: use buffer
+        // Normal buffered jump
         if (isGrounded && !jumpConsumed)
         {
             if (jumpPressed)
@@ -410,17 +467,12 @@ public class BoMovement : MonoBehaviour
     {
         if (!isGrounded && isJumping)
         {
-            Vector2 newVel;
-            if (currentDirection == RIGHT)
-                newVel = new Vector2(moveSpeed, jumpSpeed * 0.6f);
-            else if (currentDirection == LEFT)
-                newVel = new Vector2(-moveSpeed, jumpSpeed * 0.6f);
-            else
-                newVel = new Vector2(0f, jumpSpeed * 0.6f);
+            float horizontal = 0f;
+            if (currentDirection == RIGHT) horizontal = moveSpeed;
+            else if (currentDirection == LEFT) horizontal = -moveSpeed;
+            else horizontal = 0f;
 
-            rb.linearVelocity = new Vector2(newVel.x, newVel.y);
-
-            // Use jumpTime timer style to end jumping (original approach)
+            rb.linearVelocity = new Vector2(horizontal, jumpSpeed * 0.6f);
             isJumping = !StartTimer(jumpTime);
         }
         else
@@ -431,25 +483,56 @@ public class BoMovement : MonoBehaviour
 
     private void HandleMovementByState()
     {
-        // Flattened + stuck to ground: crawl or hold position
+        // Flattened & stuck to ground: crawl or hold
         if (isFlattened && isStuckToGround)
         {
-            if (currentDirection == RIGHT)
-                rb.linearVelocity = new Vector2(crawlSpeed, 0f);
-            else if (currentDirection == LEFT)
-                rb.linearVelocity = new Vector2(-crawlSpeed, 0f);
+            if (flattenAllowsCrawl)
+            {
+                if (currentDirection == RIGHT)
+                    rb.linearVelocity = new Vector2(crawlSpeed, rb.linearVelocity.y);
+                else if (currentDirection == LEFT)
+                    rb.linearVelocity = new Vector2(-crawlSpeed, rb.linearVelocity.y);
+                else
+                    rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
+            }
             else
-                rb.linearVelocity = new Vector2(0f, 0f); // hold position on ground/ramp (glued)
+            {
+                rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y); // hold position horizontal
+            }
             return;
         }
 
-        // Normal movement (works for normal and puffed states)
+        // Normal movement (works for normal and puffed states when not in the puff-specific handler)
         if (currentDirection == RIGHT)
             rb.linearVelocity = new Vector2(moveSpeed, rb.linearVelocity.y * 0.6f);
         else if (currentDirection == LEFT)
             rb.linearVelocity = new Vector2(-moveSpeed, rb.linearVelocity.y * 0.6f);
         else
             rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.6f, rb.linearVelocity.y * 0.6f);
+    }
+
+    // Puff horizontal motion: exponential-like convergence to target, decays when released
+    private void ApplyPuffHorizontalMovement()
+    {
+        float inputX = moveInput.x;
+
+        // Exponential-style LERP toward a target: choose target and use a dt-based lerp factor
+        float target = Mathf.Clamp(inputX, -1f, 1f) * puffMaxSpeed;
+
+        if (Mathf.Abs(inputX) > 0.1f)
+        {
+            // lerpFactor ~ 1 - exp(-accel * dt) produces exponential smoothing
+            float lerpFactor = 1f - Mathf.Exp(-puffAcceleration * Time.fixedDeltaTime);
+            puffVelX = Mathf.Lerp(puffVelX, target, lerpFactor);
+        }
+        else
+        {
+            // decay toward zero smoothly
+            puffVelX = Mathf.MoveTowards(puffVelX, 0f, puffDecay * Time.fixedDeltaTime);
+        }
+
+        // Apply to rigidbody
+        rb.linearVelocity = new Vector2(puffVelX, rb.linearVelocity.y);
     }
 
     private void ApplyEnhancedGravity()
@@ -466,7 +549,7 @@ public class BoMovement : MonoBehaviour
             }
             else
             {
-                if (rb.linearVelocity.y < 0) // falling
+                if (rb.linearVelocity.y < 0)
                     rb.gravityScale = originalGravityScale * fallGravityMultiplier;
                 else if (rb.linearVelocity.y > 0 && jumpWasReleased)
                     rb.gravityScale = originalGravityScale * lowJumpMultiplier;
@@ -482,7 +565,6 @@ public class BoMovement : MonoBehaviour
 
     private void HandleRotation()
     {
-        // Roll only works in normal or puffed state and on ground movement
         if (rollPressed && isGrounded && Mathf.Abs(rb.linearVelocity.x) > 0.01f && !isFlattened)
         {
             float rotationAmount = rb.linearVelocity.x * 5f * Time.fixedDeltaTime;
@@ -501,12 +583,11 @@ public class BoMovement : MonoBehaviour
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpSpeed * superJumpMultiplier);
             isGrounded = false;
             isJumping = true;
-            Debug.Log("Super Jump Triggered!");
         }
     }
 
     // -------------------------
-    // Utility & collisions
+    // Collisions & utilities
     // -------------------------
     void OnCollisionEnter2D(Collision2D collision)
     {
@@ -531,7 +612,6 @@ public class BoMovement : MonoBehaviour
         }
     }
 
-    // Simple timer helpers (kept from original design)
     private bool StartTimer(float limit)
     {
         timer += Time.deltaTime;
@@ -545,7 +625,6 @@ public class BoMovement : MonoBehaviour
 
     private void ResetTimer() => timer = 0f;
 
-    // Small helper: returns facing direction as Vector2
     private Vector2 DetermineFacingDirection()
     {
         if (currentDirection == RIGHT) return Vector2.right;
@@ -554,7 +633,7 @@ public class BoMovement : MonoBehaviour
         return sr.flipX ? Vector2.left : Vector2.right;
     }
 
-    // Public method used by gameplay to tune movement via collectibles
+    // External tuning used by gameplay
     public void UpdateMovementParams(float speedChange, float jumpTimeChange, float jumpSpeedChange)
     {
         moveSpeed += speedChange;

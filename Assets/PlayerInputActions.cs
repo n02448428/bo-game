@@ -149,7 +149,7 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
                     ""name"": ""CameraMove"",
                     ""type"": ""Value"",
                     ""id"": ""7bea5d36-5421-43a6-bb08-fcbe63addf27"",
-                    ""expectedControlType"": ""Vector2"",
+                    ""expectedControlType"": ""Axis"",
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": true
@@ -353,15 +353,48 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
                     ""isPartOfComposite"": false
                 },
                 {
-                    ""name"": """",
-                    ""id"": ""810f688f-f26d-49db-86d2-54cad15737ff"",
-                    ""path"": ""<HID::PowerA NSW Wired controller>/stick"",
+                    ""name"": ""1D Axis"",
+                    ""id"": ""8e82ebd3-ab06-4606-b3d0-df850082bea0"",
+                    ""path"": ""1DAxis"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""CameraMove"",
+                    ""isComposite"": true,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": ""Negative"",
+                    ""id"": ""20195474-2346-4f27-a8dd-cc8da175d570"",
+                    ""path"": ""<HID::PowerA NSW Wired controller>/z"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
                     ""action"": ""CameraMove"",
                     ""isComposite"": false,
+                    ""isPartOfComposite"": true
+                },
+                {
+                    ""name"": ""1D Axis"",
+                    ""id"": ""c8f50e86-8544-4983-bbd7-28a147e816b1"",
+                    ""path"": ""1DAxis"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""CameraMove"",
+                    ""isComposite"": true,
                     ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": ""Negative"",
+                    ""id"": ""a4162b4c-43e0-454b-a4af-212d68bcf10b"",
+                    ""path"": ""<HID::PowerA NSW Wired controller>/rz"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""CameraMove"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": true
                 }
             ]
         }

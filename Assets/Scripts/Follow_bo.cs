@@ -10,6 +10,8 @@ public class Follow_bo : MonoBehaviour
 
     public float px, py, pvx, pvy, cx, cy;
 
+    public Vector2 externalOffset; // set by CameraOffsetZoom
+
 
     // Start is called before the first frame update
     void Start()
@@ -29,7 +31,7 @@ public class Follow_bo : MonoBehaviour
         cx = transform.position.x;
         cy = transform.position.y;
 
-        transform.position = new Vector3(px, py, -1);
+        transform.position = new Vector3(px + externalOffset.x, py + externalOffset.y, -1);
 
         if (cx < px)
         {
