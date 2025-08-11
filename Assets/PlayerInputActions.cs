@@ -146,19 +146,28 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
                     ""initialStateCheck"": false
                 },
                 {
-                    ""name"": ""CameraMove"",
+                    ""name"": ""CameraZoom"",
+                    ""type"": ""Button"",
+                    ""id"": ""7620bbe2-03b9-43ef-9297-84acd8ea3eb9"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": true
+                },
+                {
+                    ""name"": ""CameraHorizontal"",
                     ""type"": ""Value"",
-                    ""id"": ""7bea5d36-5421-43a6-bb08-fcbe63addf27"",
+                    ""id"": ""231382d8-b3f0-4377-9ce6-0742b11897d6"",
                     ""expectedControlType"": ""Axis"",
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": true
                 },
                 {
-                    ""name"": ""CameraZoom"",
-                    ""type"": ""Button"",
-                    ""id"": ""7620bbe2-03b9-43ef-9297-84acd8ea3eb9"",
-                    ""expectedControlType"": """",
+                    ""name"": ""CameraVertical"",
+                    ""type"": ""Value"",
+                    ""id"": ""65fc3589-50cf-4cd3-ac7e-d3fed9f73be0"",
+                    ""expectedControlType"": ""Axis"",
                     ""processors"": """",
                     ""interactions"": """",
                     ""initialStateCheck"": true
@@ -353,48 +362,26 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
                     ""isPartOfComposite"": false
                 },
                 {
-                    ""name"": ""1D Axis"",
-                    ""id"": ""8e82ebd3-ab06-4606-b3d0-df850082bea0"",
-                    ""path"": ""1DAxis"",
-                    ""interactions"": """",
-                    ""processors"": """",
-                    ""groups"": """",
-                    ""action"": ""CameraMove"",
-                    ""isComposite"": true,
-                    ""isPartOfComposite"": false
-                },
-                {
-                    ""name"": ""Negative"",
-                    ""id"": ""20195474-2346-4f27-a8dd-cc8da175d570"",
+                    ""name"": """",
+                    ""id"": ""2f0bcde6-37c3-4df6-949c-caf5f2c3dbd3"",
                     ""path"": ""<HID::PowerA NSW Wired controller>/z"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
-                    ""action"": ""CameraMove"",
+                    ""action"": ""CameraHorizontal"",
                     ""isComposite"": false,
-                    ""isPartOfComposite"": true
-                },
-                {
-                    ""name"": ""1D Axis"",
-                    ""id"": ""c8f50e86-8544-4983-bbd7-28a147e816b1"",
-                    ""path"": ""1DAxis"",
-                    ""interactions"": """",
-                    ""processors"": """",
-                    ""groups"": """",
-                    ""action"": ""CameraMove"",
-                    ""isComposite"": true,
                     ""isPartOfComposite"": false
                 },
                 {
-                    ""name"": ""Negative"",
-                    ""id"": ""a4162b4c-43e0-454b-a4af-212d68bcf10b"",
+                    ""name"": """",
+                    ""id"": ""36d000c3-1419-4674-8d0e-8d0695ca5663"",
                     ""path"": ""<HID::PowerA NSW Wired controller>/rz"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
-                    ""action"": ""CameraMove"",
+                    ""action"": ""CameraVertical"",
                     ""isComposite"": false,
-                    ""isPartOfComposite"": true
+                    ""isPartOfComposite"": false
                 }
             ]
         }
@@ -409,8 +396,9 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
         m_Player_Puff = m_Player.FindAction("Puff", throwIfNotFound: true);
         m_Player_Flatten = m_Player.FindAction("Flatten", throwIfNotFound: true);
         m_Player_Teleport = m_Player.FindAction("Teleport", throwIfNotFound: true);
-        m_Player_CameraMove = m_Player.FindAction("CameraMove", throwIfNotFound: true);
         m_Player_CameraZoom = m_Player.FindAction("CameraZoom", throwIfNotFound: true);
+        m_Player_CameraHorizontal = m_Player.FindAction("CameraHorizontal", throwIfNotFound: true);
+        m_Player_CameraVertical = m_Player.FindAction("CameraVertical", throwIfNotFound: true);
     }
 
     ~@PlayerInputActions()
@@ -497,8 +485,9 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
     private readonly InputAction m_Player_Puff;
     private readonly InputAction m_Player_Flatten;
     private readonly InputAction m_Player_Teleport;
-    private readonly InputAction m_Player_CameraMove;
     private readonly InputAction m_Player_CameraZoom;
+    private readonly InputAction m_Player_CameraHorizontal;
+    private readonly InputAction m_Player_CameraVertical;
     /// <summary>
     /// Provides access to input actions defined in input action map "Player".
     /// </summary>
@@ -535,13 +524,17 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
         /// </summary>
         public InputAction @Teleport => m_Wrapper.m_Player_Teleport;
         /// <summary>
-        /// Provides access to the underlying input action "Player/CameraMove".
-        /// </summary>
-        public InputAction @CameraMove => m_Wrapper.m_Player_CameraMove;
-        /// <summary>
         /// Provides access to the underlying input action "Player/CameraZoom".
         /// </summary>
         public InputAction @CameraZoom => m_Wrapper.m_Player_CameraZoom;
+        /// <summary>
+        /// Provides access to the underlying input action "Player/CameraHorizontal".
+        /// </summary>
+        public InputAction @CameraHorizontal => m_Wrapper.m_Player_CameraHorizontal;
+        /// <summary>
+        /// Provides access to the underlying input action "Player/CameraVertical".
+        /// </summary>
+        public InputAction @CameraVertical => m_Wrapper.m_Player_CameraVertical;
         /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
@@ -586,12 +579,15 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
             @Teleport.started += instance.OnTeleport;
             @Teleport.performed += instance.OnTeleport;
             @Teleport.canceled += instance.OnTeleport;
-            @CameraMove.started += instance.OnCameraMove;
-            @CameraMove.performed += instance.OnCameraMove;
-            @CameraMove.canceled += instance.OnCameraMove;
             @CameraZoom.started += instance.OnCameraZoom;
             @CameraZoom.performed += instance.OnCameraZoom;
             @CameraZoom.canceled += instance.OnCameraZoom;
+            @CameraHorizontal.started += instance.OnCameraHorizontal;
+            @CameraHorizontal.performed += instance.OnCameraHorizontal;
+            @CameraHorizontal.canceled += instance.OnCameraHorizontal;
+            @CameraVertical.started += instance.OnCameraVertical;
+            @CameraVertical.performed += instance.OnCameraVertical;
+            @CameraVertical.canceled += instance.OnCameraVertical;
         }
 
         /// <summary>
@@ -621,12 +617,15 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
             @Teleport.started -= instance.OnTeleport;
             @Teleport.performed -= instance.OnTeleport;
             @Teleport.canceled -= instance.OnTeleport;
-            @CameraMove.started -= instance.OnCameraMove;
-            @CameraMove.performed -= instance.OnCameraMove;
-            @CameraMove.canceled -= instance.OnCameraMove;
             @CameraZoom.started -= instance.OnCameraZoom;
             @CameraZoom.performed -= instance.OnCameraZoom;
             @CameraZoom.canceled -= instance.OnCameraZoom;
+            @CameraHorizontal.started -= instance.OnCameraHorizontal;
+            @CameraHorizontal.performed -= instance.OnCameraHorizontal;
+            @CameraHorizontal.canceled -= instance.OnCameraHorizontal;
+            @CameraVertical.started -= instance.OnCameraVertical;
+            @CameraVertical.performed -= instance.OnCameraVertical;
+            @CameraVertical.canceled -= instance.OnCameraVertical;
         }
 
         /// <summary>
@@ -710,18 +709,25 @@ public partial class @PlayerInputActions: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnTeleport(InputAction.CallbackContext context);
         /// <summary>
-        /// Method invoked when associated input action "CameraMove" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
-        /// </summary>
-        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
-        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
-        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
-        void OnCameraMove(InputAction.CallbackContext context);
-        /// <summary>
         /// Method invoked when associated input action "CameraZoom" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
         /// </summary>
         /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnCameraZoom(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "CameraHorizontal" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnCameraHorizontal(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "CameraVertical" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnCameraVertical(InputAction.CallbackContext context);
     }
 }
