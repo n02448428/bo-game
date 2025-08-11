@@ -68,6 +68,10 @@ public class BoMovement : MonoBehaviour
     public float teleportClearRadius = 0.4f;
     private float teleportTimer = 0f;
 
+    [Header("Ground Check")]
+    public LayerMask groundMask;
+    public float groundCheckDistance = 1f;
+
     // State
     public const string RIGHT = "right";
     public const string LEFT = "left";
@@ -99,6 +103,7 @@ public class BoMovement : MonoBehaviour
     private float lastStateChangeTime = 0f;
     private bool wasPreviouslyFlattened = false;
     private bool isStuckToGround = false;
+    private Vector2 groundNormal = Vector2.up;
 
     // Timer style (keeps parity with earlier code)
     private float timer = 0f;
@@ -285,6 +290,9 @@ public class BoMovement : MonoBehaviour
             heldAbility = AbilityState.None;
             HandleStateTransition(false, true);
         }
+
+        // Reduce speed to crawl speed
+        rb.linearVelocity = new Vector2(Mathf.Clamp(rb.linearVelocity.x, -crawlSpeed, crawlSpeed), rb.linearVelocity.y);
     }
 
     private void OnFlattenCanceled(InputAction.CallbackContext ctx)
@@ -355,6 +363,20 @@ public class BoMovement : MonoBehaviour
             return;
         }
 
+        // Update ground normal with raycast if grounded
+        if (isGrounded)
+        {
+            RaycastHit2D hit = Physics2D.Raycast(transform.position, Vector2.down, groundCheckDistance, groundMask);
+            if (hit.collider != null)
+            {
+                groundNormal = hit.normal;
+            }
+        }
+        else
+        {
+            groundNormal = Vector2.up;
+        }
+
         if (moveInput.x > 0.1f)
         {
             currentDirection = RIGHT;
@@ -385,12 +407,6 @@ public class BoMovement : MonoBehaviour
             {
                 ApplyPuffHorizontalMovement();
             }
-        }
-
-        if (isFlattened && flattenHeld && isGrounded && !flattenAllowsCrawl)
-        {
-            rb.linearVelocity = new Vector2(0f, 0f);
-            return;
         }
 
         if (!isJumping)
@@ -491,24 +507,31 @@ public class BoMovement : MonoBehaviour
 
     private void HandleMovementByState()
     {
+        // Flattened & stuck to ground: crawl or hold
         if (isFlattened && isStuckToGround)
         {
             if (flattenAllowsCrawl)
             {
-                if (currentDirection == RIGHT)
-                    rb.linearVelocity = new Vector2(crawlSpeed, rb.linearVelocity.y);
-                else if (currentDirection == LEFT)
-                    rb.linearVelocity = new Vector2(-crawlSpeed, rb.linearVelocity.y);
+                if (currentDirection != null)
+                {
+                    // Project movement onto the slope surface
+                    Vector2 desired = new Vector2(moveInput.x > 0 ? 1f : -1f, 0f);
+                    Vector2 projected = desired - Vector2.Dot(desired, groundNormal) * groundNormal;
+                    rb.linearVelocity = projected.normalized * crawlSpeed;
+                }
                 else
-                    rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
+                {
+                    rb.linearVelocity = Vector2.zero;
+                }
             }
             else
             {
-                rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
+                rb.linearVelocity = Vector2.zero; // hold position horizontal
             }
             return;
         }
 
+        // Normal movement (works for normal and puffed states when not in the puff-specific handler)
         if (currentDirection == RIGHT)
             rb.linearVelocity = new Vector2(moveSpeed, rb.linearVelocity.y * 0.6f);
         else if (currentDirection == LEFT)
@@ -559,7 +582,14 @@ public class BoMovement : MonoBehaviour
         }
         else
         {
-            rb.gravityScale = originalGravityScale;
+            if (isFlattened)
+            {
+                rb.gravityScale = 0f; // Prevent sliding on slopes
+            }
+            else
+            {
+                rb.gravityScale = originalGravityScale;
+            }
         }
     }
 
@@ -608,6 +638,15 @@ public class BoMovement : MonoBehaviour
         if (collision.gameObject.CompareTag("DeadZone"))
         {
             OnHitDeadZone?.Invoke(collision);
+        }
+    }
+
+    void OnCollisionExit2D(Collision2D collision)
+    {
+        if (collision.gameObject.CompareTag("Platform") || collision.gameObject.CompareTag("Ground"))
+        {
+            isGrounded = false;
+            isStuckToGround = false;
         }
     }
 
