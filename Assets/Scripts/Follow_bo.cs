@@ -17,9 +17,12 @@ public class Follow_bo : MonoBehaviour
     public float cameraShiftSpeed = 8f;
 
     [Header("Zoom Settings")]
-    public float zoomOutSize = 12f;
-    private float defaultSize;
-    private bool zoomedOut = false;
+public float zoomOutSize = 12f;
+public float zoomSpeed = 5f; // how quickly zoom changes
+private float defaultSize;
+private float targetZoom; // current target zoom
+private bool zoomedOut = false;
+
 
     // Internal
     private Rigidbody2D rb;
@@ -33,7 +36,12 @@ public class Follow_bo : MonoBehaviour
     void Awake()
     {
         if (cam == null) cam = Camera.main;
-        if (cam != null) defaultSize = cam.orthographicSize;
+        if (cam != null)
+{
+    defaultSize = cam.orthographicSize;
+    targetZoom = defaultSize;
+}
+
 
         inputActions = new PlayerInputActions();
     }
@@ -106,35 +114,46 @@ public class Follow_bo : MonoBehaviour
     private void OnCameraZoomPerformed(InputAction.CallbackContext ctx)
     {
         if (cam == null) return;
-        cam.orthographicSize = zoomOutSize;
+        targetZoom  = zoomOutSize;
         zoomedOut = true;
     }
 
     private void CancelZoomOnAnyAction(InputAction.CallbackContext ctx)
     {
         if (!zoomedOut || cam == null) return;
-        cam.orthographicSize = defaultSize;
+        targetZoom  = defaultSize;
         zoomedOut = false;
     }
 
     void LateUpdate()
+{
+    if (player == null) return;
+
+    // Smooth zoom transition
+    if (cam != null)
     {
-        if (player == null) return;
-
-        // Base follow target
-        float targetX = player.transform.position.x + externalOffset.x;
-        float targetY = player.transform.position.y + externalOffset.y;
-
-        // Smooth follow
-        float smoothX = Mathf.Lerp(transform.position.x, targetX, followSmooth);
-        float smoothY = Mathf.Lerp(transform.position.y, targetY, followSmooth);
-        Vector3 basePos = new Vector3(smoothX, smoothY, -1);
-
-        // Add right stick shift
-        Vector3 desiredOffset = new Vector3(stickInput.x * cameraShiftAmount, stickInput.y * cameraShiftAmount, 0f);
-        Vector3 desired = basePos + desiredOffset;
-
-        // Smooth toward final position
-        transform.position = Vector3.Lerp(transform.position, desired, Time.deltaTime * cameraShiftSpeed);
+        cam.orthographicSize = Mathf.Lerp(
+            cam.orthographicSize,
+            targetZoom,
+            Time.deltaTime * zoomSpeed
+        );
     }
+
+    // Base follow target
+    float targetX = player.transform.position.x + externalOffset.x;
+    float targetY = player.transform.position.y + externalOffset.y;
+
+    // Smooth follow
+    float smoothX = Mathf.Lerp(transform.position.x, targetX, followSmooth);
+    float smoothY = Mathf.Lerp(transform.position.y, targetY, followSmooth);
+    Vector3 basePos = new Vector3(smoothX, smoothY, -1);
+
+    // Add right stick shift
+    Vector3 desiredOffset = new Vector3(stickInput.x * cameraShiftAmount, stickInput.y * cameraShiftAmount, 0f);
+    Vector3 desired = basePos + desiredOffset;
+
+    // Smooth toward final position
+    transform.position = Vector3.Lerp(transform.position, desired, Time.deltaTime * cameraShiftSpeed);
+}
+
 }
