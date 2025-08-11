@@ -17,12 +17,17 @@ public class Follow_bo : MonoBehaviour
     public float cameraShiftSpeed = 8f;
 
     [Header("Zoom Settings")]
-public float zoomOutSize = 12f;
-public float zoomSpeed = 5f; // how quickly zoom changes
-private float defaultSize;
-private float targetZoom; // current target zoom
-private bool zoomedOut = false;
+    public float zoomOutSize = 12f;
+    public float zoomSpeed = 5f; // how quickly zoom changes
+    private float defaultSize;
+    private float targetZoom; // current target zoom
+    private bool zoomedOut = false;
 
+    [Header("Look Ahead Settings")]
+    [Tooltip("How far ahead (in seconds) to anticipate player movement. Higher values show more ahead.")]
+    public float lookAheadFactor = 0.5f; // Adjust as needed
+    [Tooltip("Maximum look-ahead distance (in world units) to prevent excessive offset.")]
+    public float maxLookAhead = 3f; // Adjust as needed
 
     // Internal
     private Rigidbody2D rb;
@@ -37,11 +42,10 @@ private bool zoomedOut = false;
     {
         if (cam == null) cam = Camera.main;
         if (cam != null)
-{
-    defaultSize = cam.orthographicSize;
-    targetZoom = defaultSize;
-}
-
+        {
+            defaultSize = cam.orthographicSize;
+            targetZoom = defaultSize;
+        }
 
         inputActions = new PlayerInputActions();
     }
@@ -74,13 +78,13 @@ private bool zoomedOut = false;
     {
         inputActions.Player.CameraHorizontal.performed -= OnCameraHorizontalPerformed;
         inputActions.Player.CameraHorizontal.canceled -= OnCameraHorizontalCanceled;
-        inputActions.Player.CameraVertical.performed -= OnCameraVerticalPerformed;
-        inputActions.Player.CameraVertical.canceled -= OnCameraVerticalCanceled;
+        inputActions.Player.CameraVertical.performed += OnCameraVerticalPerformed;
+        inputActions.Player.CameraVertical.canceled += OnCameraVerticalCanceled;
 
         inputActions.Player.CameraZoom.performed -= OnCameraZoomPerformed;
 
         inputActions.Player.Move.performed -= CancelZoomOnAnyAction;
-        inputActions.Player.Jump.performed += CancelZoomOnAnyAction;
+        inputActions.Player.Jump.performed -= CancelZoomOnAnyAction;
         inputActions.Player.Puff.performed -= CancelZoomOnAnyAction;
         inputActions.Player.Flatten.performed -= CancelZoomOnAnyAction;
         inputActions.Player.Roll.performed -= CancelZoomOnAnyAction;
@@ -114,46 +118,49 @@ private bool zoomedOut = false;
     private void OnCameraZoomPerformed(InputAction.CallbackContext ctx)
     {
         if (cam == null) return;
-        targetZoom  = zoomOutSize;
+        targetZoom = zoomOutSize;
         zoomedOut = true;
     }
 
     private void CancelZoomOnAnyAction(InputAction.CallbackContext ctx)
     {
         if (!zoomedOut || cam == null) return;
-        targetZoom  = defaultSize;
+        targetZoom = defaultSize;
         zoomedOut = false;
     }
 
     void LateUpdate()
-{
-    if (player == null) return;
-
-    // Smooth zoom transition
-    if (cam != null)
     {
-        cam.orthographicSize = Mathf.Lerp(
-            cam.orthographicSize,
-            targetZoom,
-            Time.deltaTime * zoomSpeed
-        );
+        if (player == null) return;
+
+        // Smooth zoom transition
+        if (cam != null)
+        {
+            cam.orthographicSize = Mathf.Lerp(
+                cam.orthographicSize,
+                targetZoom,
+                Time.deltaTime * zoomSpeed
+            );
+        }
+
+        // Calculate look-ahead offset based on player's velocity
+        Vector2 lookAheadOffset = rb.linearVelocity * lookAheadFactor;
+        lookAheadOffset = Vector2.ClampMagnitude(lookAheadOffset, maxLookAhead);
+
+        // Base follow target with look-ahead
+        float targetX = player.transform.position.x + externalOffset.x + lookAheadOffset.x;
+        float targetY = player.transform.position.y + externalOffset.y + lookAheadOffset.y;
+
+        // Smooth follow
+        float smoothX = Mathf.Lerp(transform.position.x, targetX, followSmooth);
+        float smoothY = Mathf.Lerp(transform.position.y, targetY, followSmooth);
+        Vector3 basePos = new Vector3(smoothX, smoothY, -1);
+
+        // Add right stick shift
+        Vector3 desiredOffset = new Vector3(stickInput.x * cameraShiftAmount, stickInput.y * cameraShiftAmount, 0f);
+        Vector3 desired = basePos + desiredOffset;
+
+        // Smooth toward final position
+        transform.position = Vector3.Lerp(transform.position, desired, Time.deltaTime * cameraShiftSpeed);
     }
-
-    // Base follow target
-    float targetX = player.transform.position.x + externalOffset.x;
-    float targetY = player.transform.position.y + externalOffset.y;
-
-    // Smooth follow
-    float smoothX = Mathf.Lerp(transform.position.x, targetX, followSmooth);
-    float smoothY = Mathf.Lerp(transform.position.y, targetY, followSmooth);
-    Vector3 basePos = new Vector3(smoothX, smoothY, -1);
-
-    // Add right stick shift
-    Vector3 desiredOffset = new Vector3(stickInput.x * cameraShiftAmount, stickInput.y * cameraShiftAmount, 0f);
-    Vector3 desired = basePos + desiredOffset;
-
-    // Smooth toward final position
-    transform.position = Vector3.Lerp(transform.position, desired, Time.deltaTime * cameraShiftSpeed);
-}
-
 }
