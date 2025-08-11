@@ -76,6 +76,11 @@ public class BoMovement : MonoBehaviour
     private bool isJumping = false;
     private bool canMove = true;
 
+    // Input state tracking for reversion
+    private enum AbilityState { None, Puff, Flatten }
+    private AbilityState currentAbility = AbilityState.None;
+    private AbilityState heldAbility = AbilityState.None; // Tracks the held state to revert to
+
     // Jump buffering
     private float jumpBufferTimer = 0f;
     private bool jumpConsumed = false;
@@ -161,11 +166,10 @@ public class BoMovement : MonoBehaviour
     }
 
     // -------------------------
-    // Input callbacks (robust: accepts Vector2 or single float axes like z/rz)
+    // Input callbacks
     // -------------------------
     private void OnMovePerformed(InputAction.CallbackContext ctx)
     {
-        // Try to read Vector2, but some controllers expose Z/Rz as single float axes.
         object raw = ctx.ReadValueAsObject();
         if (raw is Vector2 v)
         {
@@ -173,15 +177,13 @@ public class BoMovement : MonoBehaviour
         }
         else if (raw is float f)
         {
-            // Map float control to X or Y based on control path (z/rz)
             string path = ctx.control?.path?.ToLower() ?? "";
             if (path.Contains("/z")) moveInput.x = f;
             else if (path.Contains("/rz")) moveInput.y = f;
-            else moveInput = new Vector2(f, 0f); // fallback
+            else moveInput = new Vector2(f, 0f);
         }
         else
         {
-            // fallback: read action aggregated value (may still work)
             moveInput = inputActions.Player.Move.ReadValue<Vector2>();
         }
 
@@ -196,18 +198,15 @@ public class BoMovement : MonoBehaviour
 
     private void OnJumpPerformed(InputAction.CallbackContext ctx)
     {
-        // Buffer jump
         jumpPressed = true;
         jumpWasReleased = false;
         jumpBufferTimer = jumpBufferTime;
         jumpConsumed = false;
 
-        // Puff-flap: works on ground or air while puffed (cooldown enforced)
         if (isPuffed && puffFlapTimer <= 0f)
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, puffFlapForce);
             puffFlapTimer = puffFlapCooldown;
-            // don't let this also trigger a normal jump
             jumpConsumed = true;
             jumpBufferTimer = 0f;
         }
@@ -240,29 +239,68 @@ public class BoMovement : MonoBehaviour
     private void OnPuffPerformed(InputAction.CallbackContext ctx)
     {
         puffHeld = true;
-        // smooth into puff: record prior horizontal velocity and start short smoothing
         prevHorizontalVel = rb.linearVelocity.x;
         puffEntryTimer = puffEntrySmoothingDuration;
         puffVelX = 0f;
-        HandleStateTransition(true, isFlattened);
+        // Prioritize Puff if both are pressed, but track Flatten as held
+        if (flattenHeld)
+        {
+            heldAbility = AbilityState.Flatten;
+            HandleStateTransition(true, false);
+        }
+        else
+        {
+            heldAbility = AbilityState.None;
+            HandleStateTransition(true, false);
+        }
     }
 
     private void OnPuffCanceled(InputAction.CallbackContext ctx)
     {
         puffHeld = false;
-        HandleStateTransition(false, isFlattened);
+        // Revert to held ability (Flatten) if still held, otherwise go to None
+        if (flattenHeld)
+        {
+            HandleStateTransition(false, true);
+            heldAbility = AbilityState.None;
+        }
+        else
+        {
+            HandleStateTransition(false, false);
+            heldAbility = AbilityState.None;
+        }
     }
 
     private void OnFlattenPerformed(InputAction.CallbackContext ctx)
     {
         flattenHeld = true;
-        HandleStateTransition(isPuffed, true);
+        // Prioritize Flatten if both are pressed, but track Puff as held
+        if (puffHeld)
+        {
+            heldAbility = AbilityState.Puff;
+            HandleStateTransition(false, true);
+        }
+        else
+        {
+            heldAbility = AbilityState.None;
+            HandleStateTransition(false, true);
+        }
     }
 
     private void OnFlattenCanceled(InputAction.CallbackContext ctx)
     {
         flattenHeld = false;
-        HandleStateTransition(isPuffed, false);
+        // Revert to held ability (Puff) if still held, otherwise go to None
+        if (puffHeld)
+        {
+            HandleStateTransition(true, false);
+            heldAbility = AbilityState.None;
+        }
+        else
+        {
+            HandleStateTransition(false, false);
+            heldAbility = AbilityState.None;
+        }
     }
 
     private void OnTeleportPerformed(InputAction.CallbackContext ctx)
@@ -274,7 +312,6 @@ public class BoMovement : MonoBehaviour
 
         Vector2 targetPos = (Vector2)transform.position + dir * teleportDistance;
 
-        // If full destination is free, teleport — otherwise sample along the line for closest free spot
         if (!Physics2D.OverlapCircle(targetPos, teleportClearRadius, teleportObstacles))
         {
             transform.position = targetPos;
@@ -304,7 +341,6 @@ public class BoMovement : MonoBehaviour
     // -------------------------
     void Update()
     {
-        // timers
         if (jumpBufferTimer > 0f) jumpBufferTimer -= Time.deltaTime;
         if (puffFlapTimer > 0f) puffFlapTimer -= Time.deltaTime;
         if (teleportTimer > 0f) teleportTimer -= Time.deltaTime;
@@ -319,7 +355,6 @@ public class BoMovement : MonoBehaviour
             return;
         }
 
-        // Direction & sprite flip
         if (moveInput.x > 0.1f)
         {
             currentDirection = RIGHT;
@@ -335,10 +370,8 @@ public class BoMovement : MonoBehaviour
             currentDirection = null;
         }
 
-        // Handle jump input
         HandleJumpInput();
 
-        // Puff entry smoothing (smoothly reduce prior horizontal momentum to zero)
         if (isPuffed)
         {
             if (puffEntryTimer > 0f)
@@ -350,19 +383,16 @@ public class BoMovement : MonoBehaviour
             }
             else
             {
-                // apply the light/float horizontal system
                 ApplyPuffHorizontalMovement();
             }
         }
 
-        // Flatten hold lock: if currently flattened AND the player is holding flatten and grounded -> lock horizontal
         if (isFlattened && flattenHeld && isGrounded && !flattenAllowsCrawl)
         {
-            rb.linearVelocity = new Vector2(0f, 0f); // hold position on ground/ramp
+            rb.linearVelocity = new Vector2(0f, 0f);
             return;
         }
 
-        // Normal movement or flattened crawl
         if (!isJumping)
         {
             HandleMovementByState();
@@ -372,7 +402,6 @@ public class BoMovement : MonoBehaviour
             HandleJumpPhysics();
         }
 
-        // gravity & other
         ApplyEnhancedGravity();
         HandleRotation();
     }
@@ -384,32 +413,14 @@ public class BoMovement : MonoBehaviour
     {
         wasPreviouslyFlattened = isFlattened;
 
-        // Mutually exclusive states
-        if (newPuffState && newFlattenState)
-        {
-            // prioritize the one that wasn't already active
-            if (isPuffed)
-            {
-                isPuffed = false;
-                isFlattened = true;
-            }
-            else
-            {
-                isPuffed = true;
-                isFlattened = false;
-            }
-        }
-        else
-        {
-            isPuffed = newPuffState;
-            isFlattened = newFlattenState;
-        }
+        isPuffed = newPuffState;
+        isFlattened = newFlattenState;
+        currentAbility = isPuffed ? AbilityState.Puff : isFlattened ? AbilityState.Flatten : AbilityState.None;
 
         lastStateChangeTime = Time.time;
         _animator?.SetBool("isPuffed", isPuffed);
         _animator?.SetBool("isFlattened", isFlattened);
 
-        // Super-jump (flatten -> puff quickly while grounded)
         if (wasPreviouslyFlattened && isPuffed && isGrounded)
         {
             float timeSince = Time.time - lastStateChangeTime;
@@ -426,13 +437,11 @@ public class BoMovement : MonoBehaviour
     {
         if (isPuffed)
         {
-            // normal jump disabled while puffed (puff-flap handled in input)
             return;
         }
 
         if (isFlattened)
         {
-            // small hop while flattened
             if (jumpPressed && isGrounded && !jumpConsumed && flattenAllowsCrawl)
             {
                 rb.linearVelocity = new Vector2(rb.linearVelocity.x, miniHopSpeed);
@@ -441,7 +450,6 @@ public class BoMovement : MonoBehaviour
             return;
         }
 
-        // Normal buffered jump
         if (isGrounded && !jumpConsumed)
         {
             if (jumpPressed)
@@ -483,7 +491,6 @@ public class BoMovement : MonoBehaviour
 
     private void HandleMovementByState()
     {
-        // Flattened & stuck to ground: crawl or hold
         if (isFlattened && isStuckToGround)
         {
             if (flattenAllowsCrawl)
@@ -497,12 +504,11 @@ public class BoMovement : MonoBehaviour
             }
             else
             {
-                rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y); // hold position horizontal
+                rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
             }
             return;
         }
 
-        // Normal movement (works for normal and puffed states when not in the puff-specific handler)
         if (currentDirection == RIGHT)
             rb.linearVelocity = new Vector2(moveSpeed, rb.linearVelocity.y * 0.6f);
         else if (currentDirection == LEFT)
@@ -511,27 +517,21 @@ public class BoMovement : MonoBehaviour
             rb.linearVelocity = new Vector2(rb.linearVelocity.x * 0.6f, rb.linearVelocity.y * 0.6f);
     }
 
-    // Puff horizontal motion: exponential-like convergence to target, decays when released
     private void ApplyPuffHorizontalMovement()
     {
         float inputX = moveInput.x;
-
-        // Exponential-style LERP toward a target: choose target and use a dt-based lerp factor
         float target = Mathf.Clamp(inputX, -1f, 1f) * puffMaxSpeed;
 
         if (Mathf.Abs(inputX) > 0.1f)
         {
-            // lerpFactor ~ 1 - exp(-accel * dt) produces exponential smoothing
             float lerpFactor = 1f - Mathf.Exp(-puffAcceleration * Time.fixedDeltaTime);
             puffVelX = Mathf.Lerp(puffVelX, target, lerpFactor);
         }
         else
         {
-            // decay toward zero smoothly
             puffVelX = Mathf.MoveTowards(puffVelX, 0f, puffDecay * Time.fixedDeltaTime);
         }
 
-        // Apply to rigidbody
         rb.linearVelocity = new Vector2(puffVelX, rb.linearVelocity.y);
     }
 
@@ -597,7 +597,6 @@ public class BoMovement : MonoBehaviour
             isJumping = false;
             ResetTimer();
 
-            // If flattened, stick to ground (prevents sliding on slopes)
             if (isFlattened)
             {
                 isStuckToGround = true;
@@ -629,11 +628,9 @@ public class BoMovement : MonoBehaviour
     {
         if (currentDirection == RIGHT) return Vector2.right;
         if (currentDirection == LEFT) return Vector2.left;
-        // fallback to sprite orientation
         return sr.flipX ? Vector2.left : Vector2.right;
     }
 
-    // External tuning used by gameplay
     public void UpdateMovementParams(float speedChange, float jumpTimeChange, float jumpSpeedChange)
     {
         moveSpeed += speedChange;
